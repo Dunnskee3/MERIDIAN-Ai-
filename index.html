@@ -1,0 +1,1111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MERIDIAN — AI Meeting Intelligence</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Mono:wght@300;400;500&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<style>
+  :root {
+    --void: #070709;
+    --obsidian: #0d0d12;
+    --surface: #13131a;
+    --panel: #1a1a24;
+    --border: rgba(255,255,255,0.07);
+    --border-accent: rgba(212,175,55,0.3);
+    --gold: #d4af37;
+    --gold-light: #f0d060;
+    --gold-dim: rgba(212,175,55,0.15);
+    --text-primary: #f0ede8;
+    --text-secondary: #8a8898;
+    --text-dim: #4a4a5a;
+    --green: #2dcc70;
+    --red: #e84545;
+    --blue: #4a9eff;
+    --amber: #f5a623;
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; }
+  body {
+    background: var(--void);
+    color: var(--text-primary);
+    font-family: 'DM Mono', monospace;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+  body::before {
+    content: '';
+    position: fixed; inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");
+    pointer-events: none; z-index: 9998; opacity: 0.4;
+  }
+
+  /* ─── SPLASH ─────────────────────────── */
+  #splash {
+    position: fixed; inset: 0; z-index: 9999;
+    background: var(--void);
+    display: flex; align-items: center; justify-content: center;
+    flex-direction: column;
+    transition: opacity 0.9s ease, visibility 0.9s ease;
+  }
+  #splash.fade-out { opacity: 0; visibility: hidden; pointer-events: none; }
+
+  .splash-inner { text-align: center; display: flex; flex-direction: column; align-items: center; }
+
+  .splash-ring {
+    width: 130px; height: 130px;
+    border: 1px solid rgba(212,175,55,0.12);
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    position: relative; margin-bottom: 44px;
+    animation: rPulse 3s ease-in-out infinite;
+  }
+  .splash-ring::before {
+    content: ''; position: absolute; inset: 10px;
+    border: 1px solid rgba(212,175,55,0.22); border-radius: 50%;
+    animation: rPulse 3s ease-in-out infinite 0.35s;
+  }
+  .splash-ring::after {
+    content: ''; position: absolute; inset: -22px;
+    border: 1px solid rgba(212,175,55,0.06); border-radius: 50%;
+    animation: rPulse 3s ease-in-out infinite 0.7s;
+  }
+  @keyframes rPulse { 0%,100%{opacity:0.35;transform:scale(1)} 50%{opacity:1;transform:scale(1.04)} }
+
+  .splash-glyph { font-size: 44px; color: var(--gold); animation: gPulse 2s ease-in-out infinite; }
+  @keyframes gPulse { 0%,100%{opacity:0.65} 50%{opacity:1} }
+
+  .splash-wordmark {
+    font-family: 'Syne', sans-serif;
+    font-size: 46px; font-weight: 800;
+    letter-spacing: 0.24em; color: var(--gold); text-transform: uppercase;
+    opacity: 0; animation: fUp 0.8s ease 0.5s forwards;
+  }
+  .splash-tagline {
+    font-size: 11px; letter-spacing: 0.36em; color: var(--text-dim);
+    text-transform: uppercase; margin-top: 10px;
+    opacity: 0; animation: fUp 0.8s ease 0.8s forwards;
+  }
+  @keyframes fUp { from{opacity:0;transform:translateY(14px)} to{opacity:1;transform:translateY(0)} }
+
+  .splash-progress-wrap {
+    width: 260px; margin-top: 52px;
+    opacity: 0; animation: fUp 0.5s ease 1.1s forwards;
+  }
+  .splash-progress-track { height: 1px; background: var(--border); overflow: hidden; }
+  .splash-progress-fill {
+    height: 100%; width: 0;
+    background: linear-gradient(90deg, transparent, var(--gold), transparent);
+    animation: pFill 1.9s ease 1.3s forwards;
+  }
+  @keyframes pFill { to { width: 100%; } }
+
+  .splash-pct {
+    font-size: 10px; letter-spacing: 0.25em; color: var(--text-dim);
+    text-transform: uppercase; margin-top: 12px;
+    display: flex; justify-content: space-between;
+  }
+  .splash-pct span { color: var(--gold); }
+
+  /* ─── HEADER ─────────────────────────── */
+  .header {
+    border-bottom: 1px solid var(--border);
+    padding: 0 48px; height: 64px;
+    display: flex; align-items: center; justify-content: space-between;
+    position: sticky; top: 0; z-index: 100;
+    background: rgba(7,7,9,0.95); backdrop-filter: blur(20px);
+  }
+  .logo {
+    font-family: 'Syne', sans-serif;
+    font-weight: 800; font-size: 18px;
+    letter-spacing: 0.15em; color: var(--gold); text-transform: uppercase;
+  }
+  .logo span {
+    color: var(--text-dim); font-weight: 400; font-size: 10px;
+    letter-spacing: 0.3em; display: block; margin-top: -2px;
+  }
+  .header-right { display: flex; align-items: center; gap: 14px; }
+  .status-pill {
+    display: flex; align-items: center; gap: 8px;
+    padding: 6px 14px; border: 1px solid var(--border); background: var(--surface);
+  }
+  .status-dot {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: var(--green); box-shadow: 0 0 6px var(--green);
+    animation: dot 2.5s infinite;
+  }
+  @keyframes dot { 0%,100%{opacity:1} 50%{opacity:0.3} }
+  .status-text { font-size: 10px; letter-spacing: 0.2em; color: var(--text-secondary); text-transform: uppercase; }
+
+  /* ─── LAYOUT ─────────────────────────── */
+  .main { display: grid; grid-template-columns: 390px 1fr; min-height: calc(100vh - 64px); }
+
+  /* ─── LEFT PANEL ─────────────────────── */
+  .left-panel {
+    border-right: 1px solid var(--border);
+    padding: 30px 26px; background: var(--obsidian);
+    display: flex; flex-direction: column; gap: 22px; overflow-y: auto;
+  }
+  .panel-label {
+    font-size: 9px; letter-spacing: 0.35em;
+    color: var(--text-dim); text-transform: uppercase; margin-bottom: 9px;
+  }
+
+  /* AUDIO RECORD */
+  .audio-bar {
+    display: flex; align-items: center; gap: 10px;
+    padding: 12px 14px;
+    background: var(--surface); border: 1px solid var(--border);
+    transition: border-color 0.3s, background 0.3s;
+  }
+  .audio-bar.recording { border-color: rgba(232,69,69,0.5); background: rgba(232,69,69,0.04); }
+
+  .record-btn {
+    width: 38px; height: 38px; border-radius: 50%;
+    border: 1px solid var(--border); background: var(--panel);
+    cursor: pointer; display: flex; align-items: center; justify-content: center;
+    transition: all 0.2s; flex-shrink: 0; font-size: 15px;
+  }
+  .record-btn:hover { border-color: var(--red); background: rgba(232,69,69,0.08); }
+  .record-btn.active {
+    background: var(--red); border-color: var(--red);
+    box-shadow: 0 0 18px rgba(232,69,69,0.45);
+    animation: recPulse 1.2s ease-in-out infinite;
+  }
+  @keyframes recPulse {
+    0%,100%{ box-shadow:0 0 10px rgba(232,69,69,0.35) }
+    50%{ box-shadow:0 0 24px rgba(232,69,69,0.7) }
+  }
+
+  .audio-info { flex: 1; min-width: 0; }
+  .audio-label { font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--text-secondary); }
+  .audio-bar.recording .audio-label { color: var(--red); }
+  .audio-sub { font-size: 9px; color: var(--text-dim); margin-top: 2px; }
+  .interim-text {
+    font-size: 9px; color: var(--text-dim); font-style: italic;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 170px;
+    margin-top: 3px;
+  }
+
+  .audio-waves { display: flex; align-items: center; gap: 2px; height: 22px; opacity: 0; transition: opacity 0.3s; }
+  .audio-bar.recording .audio-waves { opacity: 1; }
+  .wave-bar { width: 2px; border-radius: 1px; background: var(--red); animation: wv 0.8s ease-in-out infinite; }
+  .wave-bar:nth-child(1){height:6px;animation-delay:0s}
+  .wave-bar:nth-child(2){height:16px;animation-delay:0.1s}
+  .wave-bar:nth-child(3){height:10px;animation-delay:0.2s}
+  .wave-bar:nth-child(4){height:20px;animation-delay:0.05s}
+  .wave-bar:nth-child(5){height:8px;animation-delay:0.15s}
+  @keyframes wv { 0%,100%{transform:scaleY(0.35);opacity:0.45} 50%{transform:scaleY(1);opacity:1} }
+
+  .compat-note { font-size: 9px; color: var(--text-dim); margin-top: 5px; }
+
+  /* TRANSCRIPT */
+  .textarea-wrap { position: relative; }
+  .transcript-area {
+    width: 100%; height: 220px;
+    background: var(--surface); border: 1px solid var(--border);
+    color: var(--text-primary); font-family: 'DM Mono', monospace;
+    font-size: 11.5px; line-height: 1.8; padding: 14px; resize: none; outline: none;
+    transition: border-color 0.2s;
+  }
+  .transcript-area:focus { border-color: rgba(212,175,55,0.35); }
+  .transcript-area.listening { border-color: rgba(232,69,69,0.4); }
+  .transcript-area::placeholder { color: var(--text-dim); font-style: italic; }
+  .char-count { position: absolute; bottom: 10px; right: 10px; font-size: 9px; color: var(--text-dim); }
+
+  .transcript-actions { display: flex; gap: 6px; margin-top: 6px; }
+  .t-btn {
+    flex: 1; padding: 8px 10px; background: transparent;
+    border: 1px solid var(--border); color: var(--text-dim);
+    font-family: 'DM Mono', monospace; font-size: 9px;
+    letter-spacing: 0.14em; text-transform: uppercase; cursor: pointer; transition: all 0.2s;
+  }
+  .t-btn:hover { border-color: rgba(255,255,255,0.15); color: var(--text-secondary); }
+
+  /* OPTIONS */
+  .options-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
+  .option-chip {
+    padding: 10px; border: 1px solid var(--border);
+    background: transparent; color: var(--text-secondary);
+    font-family: 'DM Mono', monospace; font-size: 10px;
+    letter-spacing: 0.07em; cursor: pointer; transition: all 0.15s;
+    text-align: left; display: flex; align-items: center; gap: 7px;
+  }
+  .option-chip.active { border-color: var(--border-accent); background: var(--gold-dim); color: var(--gold-light); }
+  .option-chip:hover:not(.active) { border-color: rgba(255,255,255,0.13); color: var(--text-primary); }
+
+  /* META */
+  .meta-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .meta-field select, .meta-field input {
+    width: 100%; background: var(--surface); border: 1px solid var(--border);
+    color: var(--text-primary); font-family: 'DM Mono', monospace;
+    font-size: 11px; padding: 10px 12px; outline: none;
+    transition: border-color 0.2s; -webkit-appearance: none;
+  }
+  .meta-field select option { background: var(--surface); }
+  .meta-field select:focus, .meta-field input:focus { border-color: var(--border-accent); }
+  .meta-field input::placeholder { color: var(--text-dim); }
+
+  /* ANALYZE BTN */
+  .analyze-btn {
+    width: 100%; padding: 18px; background: transparent;
+    border: 1px solid var(--gold); color: var(--gold);
+    font-family: 'Syne', sans-serif; font-size: 11px; font-weight: 700;
+    letter-spacing: 0.3em; text-transform: uppercase; cursor: pointer;
+    transition: all 0.25s; position: relative; overflow: hidden;
+  }
+  .analyze-btn::before {
+    content: ''; position: absolute; inset: 0;
+    background: var(--gold); transform: translateX(-100%); transition: transform 0.28s ease;
+  }
+  .analyze-btn:hover::before { transform: translateX(0); }
+  .analyze-btn:hover { color: var(--void); }
+  .analyze-btn span { position: relative; z-index: 1; }
+  .analyze-btn:disabled { opacity: 0.36; cursor: not-allowed; }
+  .analyze-btn:disabled::before { display: none; }
+
+  /* ─── RIGHT PANEL ────────────────────── */
+  .right-panel { padding: 40px 44px; overflow-y: auto; }
+
+  .empty-state {
+    height: 100%; display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    text-align: center; gap: 16px; opacity: 0.38;
+  }
+  .empty-glyph { font-size: 56px; font-family: 'Instrument Serif', serif; color: var(--text-dim); }
+  .empty-title { font-family: 'Syne', sans-serif; font-size: 17px; font-weight: 600; color: var(--text-secondary); }
+  .empty-sub { font-size: 11px; color: var(--text-dim); max-width: 280px; line-height: 1.7; }
+
+  /* LOADING */
+  .loading-state { padding: 60px 0; display: flex; flex-direction: column; align-items: center; gap: 26px; }
+  .loading-bars { display: flex; gap: 4px; align-items: flex-end; height: 42px; }
+  .loading-bar { width: 4px; background: var(--gold); border-radius: 2px; animation: bP 1.2s ease-in-out infinite; }
+  .loading-bar:nth-child(1){animation-delay:0s;height:18px}
+  .loading-bar:nth-child(2){animation-delay:0.1s;height:28px}
+  .loading-bar:nth-child(3){animation-delay:0.2s;height:40px}
+  .loading-bar:nth-child(4){animation-delay:0.3s;height:24px}
+  .loading-bar:nth-child(5){animation-delay:0.4s;height:34px}
+  .loading-bar:nth-child(6){animation-delay:0.5s;height:18px}
+  @keyframes bP { 0%,100%{opacity:0.2;transform:scaleY(0.5)} 50%{opacity:1;transform:scaleY(1)} }
+  .loading-label { font-size: 11px; letter-spacing: 0.28em; color: var(--text-secondary); text-transform: uppercase; }
+  .loading-steps { display: flex; flex-direction: column; gap: 9px; width: 300px; }
+  .loading-step { display: flex; align-items: center; gap: 12px; font-size: 11px; color: var(--text-dim); transition: color 0.3s; }
+  .loading-step.active { color: var(--text-primary); }
+  .loading-step.done { color: var(--green); }
+  .step-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--text-dim); flex-shrink: 0; transition: background 0.3s; }
+  .loading-step.active .step-dot { background: var(--gold); box-shadow: 0 0 6px var(--gold); }
+  .loading-step.done .step-dot { background: var(--green); }
+
+  /* ─── RESULTS ────────────────────────── */
+  .results { display: flex; flex-direction: column; gap: 26px; }
+  .results-header {
+    display: flex; align-items: flex-start; justify-content: space-between;
+    border-bottom: 1px solid var(--border); padding-bottom: 22px;
+  }
+  .results-title { font-family: 'Instrument Serif', serif; font-size: 28px; line-height: 1.2; }
+  .results-meta { display: flex; gap: 14px; margin-top: 7px; flex-wrap: wrap; }
+  .meta-badge { font-size: 9px; letter-spacing: 0.13em; color: var(--text-dim); text-transform: uppercase; display: flex; align-items: center; gap: 8px; }
+  .meta-badge::before { content:''; display:inline-block; width:1px; height:10px; background:var(--border); }
+  .meta-badge:first-child::before { display: none; }
+
+  .export-btns { display: flex; gap: 7px; flex-shrink: 0; }
+  .export-btn {
+    padding: 9px 16px; background: transparent; border: 1px solid var(--border);
+    color: var(--text-secondary); font-family: 'DM Mono', monospace; font-size: 10px;
+    letter-spacing: 0.12em; text-transform: uppercase; cursor: pointer; transition: all 0.2s;
+  }
+  .export-btn:hover { border-color: var(--border-accent); color: var(--gold); }
+  .export-btn.pdf { border-color: rgba(232,69,69,0.3); color: var(--red); }
+  .export-btn.pdf:hover { background: rgba(232,69,69,0.07); border-color: var(--red); }
+
+  .score-strip { display: grid; grid-template-columns: repeat(4,1fr); gap: 1px; background: var(--border); border: 1px solid var(--border); }
+  .score-cell { background: var(--surface); padding: 18px 12px; text-align: center; }
+  .score-num { font-family: 'Syne', sans-serif; font-size: 28px; font-weight: 700; color: var(--gold); line-height: 1; margin-bottom: 4px; }
+  .score-label { font-size: 9px; letter-spacing: 0.18em; color: var(--text-dim); text-transform: uppercase; }
+
+  .topic-cloud { display: flex; flex-wrap: wrap; gap: 7px; }
+  .topic-tag { padding: 5px 12px; background: var(--panel); border: 1px solid var(--border); font-size: 11px; color: var(--text-secondary); }
+
+  /* SECTION CARDS */
+  .section-card {
+    background: var(--surface); border: 1px solid var(--border);
+    position: relative; overflow: hidden;
+    animation: sUp 0.35s ease forwards; opacity: 0;
+  }
+  @keyframes sUp { from{opacity:0;transform:translateY(14px)} to{opacity:1;transform:translateY(0)} }
+  .section-card:nth-child(1){animation-delay:.04s}
+  .section-card:nth-child(2){animation-delay:.09s}
+  .section-card:nth-child(3){animation-delay:.14s}
+  .section-card:nth-child(4){animation-delay:.19s}
+  .section-card:nth-child(5){animation-delay:.23s}
+  .section-card:nth-child(6){animation-delay:.28s}
+  .section-card::before { content:''; position:absolute; top:0;left:0;right:0;height:2px; }
+  .section-card.gold::before{background:linear-gradient(90deg,var(--gold),transparent)}
+  .section-card.green::before{background:linear-gradient(90deg,var(--green),transparent)}
+  .section-card.red::before{background:linear-gradient(90deg,var(--red),transparent)}
+  .section-card.blue::before{background:linear-gradient(90deg,var(--blue),transparent)}
+  .section-card.amber::before{background:linear-gradient(90deg,var(--amber),transparent)}
+
+  .card-header { padding: 17px 20px 13px; display: flex; align-items: center; gap: 10px; border-bottom: 1px solid var(--border); }
+  .card-icon { font-size: 15px; }
+  .card-title { font-family:'Syne',sans-serif; font-size:10px; font-weight:700; letter-spacing:0.24em; text-transform:uppercase; color:var(--text-secondary); }
+  .card-count { margin-left:auto; font-size:10px; color:var(--text-dim); }
+  .card-body { padding: 17px 20px; }
+
+  .summary-text { font-size: 13px; line-height: 1.9; color: var(--text-primary); }
+
+  .action-list { display:flex; flex-direction:column; gap:9px; }
+  .action-item { display:grid; grid-template-columns:20px 1fr auto; gap:10px; align-items:start; padding:12px; background:var(--panel); border:1px solid var(--border); border-left:3px solid; }
+  .action-item.ph{border-left-color:var(--red)}
+  .action-item.pm{border-left-color:var(--amber)}
+  .action-item.pl{border-left-color:var(--text-dim)}
+  .action-num { font-size:10px; color:var(--text-dim); padding-top:1px; }
+  .action-task { font-size:12px; color:var(--text-primary); line-height:1.6; margin-bottom:5px; }
+  .action-details { display:flex; gap:7px; flex-wrap:wrap; }
+  .atag { font-size:9px; letter-spacing:0.12em; text-transform:uppercase; padding:2px 7px; border:1px solid var(--border); color:var(--text-dim); }
+  .atag.owner{border-color:rgba(74,158,255,0.3);color:var(--blue)}
+  .atag.due{border-color:rgba(245,166,35,0.3);color:var(--amber)}
+  .atag.hi{border-color:rgba(232,69,69,0.3);color:var(--red)}
+  .atag.med{border-color:rgba(245,166,35,0.3);color:var(--amber)}
+  .action-check { width:18px;height:18px;border:1px solid var(--border);background:transparent;cursor:pointer;transition:all 0.2s;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:11px;color:var(--green); }
+  .action-check:hover{border-color:var(--green);background:rgba(45,204,112,0.1)}
+
+  .decision-list{display:flex;flex-direction:column;gap:9px}
+  .decision-item{padding:14px;background:var(--panel);border:1px solid var(--border);border-left:3px solid var(--gold)}
+  .decision-text{font-size:12px;color:var(--text-primary);line-height:1.7;margin-bottom:5px}
+  .decision-rationale{font-size:11px;color:var(--text-secondary);line-height:1.6;font-style:italic}
+
+  .risk-list{display:flex;flex-direction:column;gap:9px}
+  .risk-item{padding:13px;background:var(--panel);border:1px solid var(--border);display:grid;grid-template-columns:auto 1fr;gap:13px;align-items:start}
+  .rsev{font-size:9px;letter-spacing:0.18em;text-transform:uppercase;padding:3px 9px;white-space:nowrap}
+  .rsev.high{background:rgba(232,69,69,0.1);color:var(--red);border:1px solid rgba(232,69,69,0.25)}
+  .rsev.med{background:rgba(245,166,35,0.08);color:var(--amber);border:1px solid rgba(245,166,35,0.25)}
+  .rsev.low{background:rgba(255,255,255,0.03);color:var(--text-dim);border:1px solid var(--border)}
+  .risk-text{font-size:12px;color:var(--text-primary);line-height:1.7}
+  .risk-mit{margin-top:4px;font-size:11px;color:var(--text-secondary);line-height:1.6}
+
+  .speaker-grid{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+  .speaker-card{padding:14px;background:var(--panel);border:1px solid var(--border)}
+  .speaker-name{font-family:'Syne',sans-serif;font-size:12px;font-weight:600;color:var(--text-primary);margin-bottom:6px}
+  .speaker-stat{font-size:10px;color:var(--text-secondary);display:flex;justify-content:space-between;margin-bottom:3px}
+  .sv{color:var(--text-primary)}
+  .sent-bar{height:2px;background:var(--border);margin-top:10px;overflow:hidden}
+  .sent-fill{height:100%;background:linear-gradient(90deg,var(--red),var(--amber),var(--green));transition:width 1.1s ease}
+
+  .followup-list{display:flex;flex-direction:column;gap:7px}
+  .followup-item{display:flex;gap:10px;align-items:flex-start;padding:11px 13px;background:var(--panel);border:1px solid var(--border)}
+  .followup-arrow{color:var(--gold);font-size:11px;padding-top:1px;flex-shrink:0}
+  .followup-text{font-size:12px;color:var(--text-primary);line-height:1.6}
+
+  .error-box{padding:26px;background:rgba(232,69,69,0.05);border:1px solid rgba(232,69,69,0.2);color:var(--red);font-size:12px;line-height:1.7}
+
+  ::-webkit-scrollbar{width:3px}
+  ::-webkit-scrollbar-track{background:transparent}
+  ::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+  .hidden{display:none!important}
+</style>
+</head>
+<body>
+
+<!-- SPLASH -->
+<div id="splash">
+  <div class="splash-inner">
+    <div class="splash-ring"><div class="splash-glyph">◈</div></div>
+    <div class="splash-wordmark">MERIDIAN</div>
+    <div class="splash-tagline">AI Meeting Intelligence Platform</div>
+    <div class="splash-progress-wrap">
+      <div class="splash-progress-track"><div class="splash-progress-fill"></div></div>
+      <div class="splash-pct">
+        <span>Initializing engine</span>
+        <span id="splashPct">0%</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- HEADER -->
+<header class="header">
+  <div class="logo">MERIDIAN<span>AI Meeting Intelligence Platform</span></div>
+  <div class="header-right">
+    <div class="status-pill">
+      <div class="status-dot"></div>
+      <span class="status-text">Engine Active</span>
+    </div>
+  </div>
+</header>
+
+<!-- MAIN -->
+<div class="main">
+  <!-- LEFT -->
+  <div class="left-panel">
+
+    <div>
+      <div class="panel-label">Voice Capture</div>
+      <div class="audio-bar" id="audioBar">
+        <button class="record-btn" id="recordBtn" onclick="toggleRecording()" title="Record live meeting">🎙</button>
+        <div class="audio-info">
+          <div class="audio-label" id="audioLabel">Click mic to record</div>
+          <div class="audio-sub" id="audioSub">Live speech-to-text transcription</div>
+          <div class="interim-text" id="interimText"></div>
+        </div>
+        <div class="audio-waves" id="audioWaves">
+          <div class="wave-bar"></div><div class="wave-bar"></div>
+          <div class="wave-bar"></div><div class="wave-bar"></div>
+          <div class="wave-bar"></div>
+        </div>
+      </div>
+      <div class="compat-note">⚠ Voice capture requires Chrome or Edge</div>
+    </div>
+
+    <div>
+      <div class="panel-label">Meeting Transcript</div>
+      <div class="textarea-wrap">
+        <textarea class="transcript-area" id="transcript"
+          placeholder="Paste transcript here, or use the mic above to record live...&#10;&#10;Speaker: [Name]&#10;[Dialogue]"></textarea>
+        <span class="char-count" id="charCount">0 chars</span>
+      </div>
+      <div class="transcript-actions">
+        <button class="t-btn" onclick="loadSample()">↓ Load Sample</button>
+        <button class="t-btn" onclick="document.getElementById('transcript').value='';document.getElementById('charCount').textContent='0 chars';">✕ Clear</button>
+      </div>
+    </div>
+
+    <div>
+      <div class="panel-label">Meeting Context</div>
+      <div class="meta-grid">
+        <div class="meta-field">
+          <label class="panel-label" style="margin-bottom:5px;">Type</label>
+          <select id="meetingType">
+            <option value="">Select type</option>
+            <option value="executive">Executive Review</option>
+            <option value="sales">Sales Call</option>
+            <option value="sprint">Sprint / Standup</option>
+            <option value="client">Client Meeting</option>
+            <option value="strategy">Strategy Session</option>
+            <option value="hr">HR / 1-on-1</option>
+            <option value="board">Board Meeting</option>
+          </select>
+        </div>
+        <div class="meta-field">
+          <label class="panel-label" style="margin-bottom:5px;">Duration</label>
+          <input type="text" id="meetingDuration" placeholder="e.g. 60 min">
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <div class="panel-label">Analysis Modules</div>
+      <div class="options-grid">
+        <button class="option-chip active" data-module="summary">◈ Summary</button>
+        <button class="option-chip active" data-module="actions">◉ Action Items</button>
+        <button class="option-chip active" data-module="decisions">◆ Decisions</button>
+        <button class="option-chip active" data-module="risks">⚠ Risk Flags</button>
+        <button class="option-chip active" data-module="speakers">◎ Speakers</button>
+        <button class="option-chip active" data-module="followups">→ Follow-Ups</button>
+      </div>
+    </div>
+
+    <div style="margin-top:auto;padding-top:8px;">
+      <button class="analyze-btn" id="analyzeBtn" onclick="runAnalysis()">
+        <span id="analyzeBtnText">⟶ &nbsp; Run Analysis</span>
+      </button>
+    </div>
+
+  </div>
+
+  <!-- RIGHT -->
+  <div class="right-panel">
+    <div class="empty-state" id="emptyState">
+      <div class="empty-glyph">◈</div>
+      <div class="empty-title">No Meeting Analyzed</div>
+      <div class="empty-sub">Record or paste a transcript, select your modules, then run the engine.</div>
+    </div>
+    <div class="loading-state hidden" id="loadingState">
+      <div class="loading-bars">
+        <div class="loading-bar"></div><div class="loading-bar"></div>
+        <div class="loading-bar"></div><div class="loading-bar"></div>
+        <div class="loading-bar"></div><div class="loading-bar"></div>
+      </div>
+      <div class="loading-label">Processing Intelligence</div>
+      <div class="loading-steps">
+        <div class="loading-step" id="step1"><div class="step-dot"></div>Parsing transcript structure</div>
+        <div class="loading-step" id="step2"><div class="step-dot"></div>Extracting decisions & action items</div>
+        <div class="loading-step" id="step3"><div class="step-dot"></div>Identifying risks & blockers</div>
+        <div class="loading-step" id="step4"><div class="step-dot"></div>Analyzing speaker dynamics</div>
+        <div class="loading-step" id="step5"><div class="step-dot"></div>Generating executive summary</div>
+      </div>
+    </div>
+    <div class="results hidden" id="resultsPanel"></div>
+  </div>
+</div>
+
+<script>
+;(function(){
+'use strict';
+
+/* ── SPLASH ── */
+(function(){
+  const el = document.getElementById('splashPct');
+  [[20,350],[45,700],[70,1100],[88,1600],[100,2300]].forEach(([p,t])=>{
+    setTimeout(()=>{ if(el) el.textContent = p+'%'; }, t);
+  });
+  setTimeout(()=>{ document.getElementById('splash').classList.add('fade-out'); }, 2900);
+})();
+
+/* ── MODULE STATE ── */
+const _mods = new Set(['summary','actions','decisions','risks','speakers','followups']);
+
+document.querySelectorAll('.option-chip').forEach(chip => {
+  chip.addEventListener('click', function(){
+    this.classList.toggle('active');
+    const m = this.dataset.module;
+    _mods.has(m) ? _mods.delete(m) : _mods.add(m);
+  });
+});
+
+document.getElementById('transcript').addEventListener('input', function(){
+  document.getElementById('charCount').textContent = this.value.length.toLocaleString()+' chars';
+});
+
+/* ── AUDIO RECORDING ── */
+let recognition = null, isRecording = false, finalTranscript = '';
+
+function buildRec(){
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if(!SR) return null;
+  const r = new SR();
+  r.continuous = true; r.interimResults = true; r.lang = 'en-US';
+
+  r.onresult = function(e){
+    for(let i = e.resultIndex; i < e.results.length; i++){
+      const t = e.results[i][0].transcript;
+      if(e.results[i].isFinal){
+        finalTranscript += t + ' ';
+        const area = document.getElementById('transcript');
+        area.value = finalTranscript.trim();
+        document.getElementById('charCount').textContent = area.value.length.toLocaleString()+' chars';
+        document.getElementById('interimText').textContent = '';
+      } else {
+        const preview = t.slice(0,65);
+        document.getElementById('interimText').textContent = preview + (t.length>65?'...':'');
+      }
+    }
+  };
+
+  r.onerror = function(e){
+    if(e.error === 'not-allowed'){
+      document.getElementById('audioLabel').textContent = 'Mic access denied';
+      document.getElementById('audioSub').textContent = 'Allow microphone in browser settings';
+    }
+    stopRec();
+  };
+
+  r.onend = function(){ if(isRecording) r.start(); };
+  return r;
+}
+
+window.toggleRecording = function(){
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if(!SR){ alert('Voice recording requires Chrome or Edge.'); return; }
+  if(isRecording){ stopRec(); return; }
+  if(!recognition) recognition = buildRec();
+  if(!recognition) return;
+
+  isRecording = true;
+  finalTranscript = document.getElementById('transcript').value
+    ? document.getElementById('transcript').value.trimEnd()+'\n' : '';
+  recognition.start();
+
+  document.getElementById('recordBtn').classList.add('active');
+  document.getElementById('recordBtn').textContent = '⏹';
+  document.getElementById('audioBar').classList.add('recording');
+  document.getElementById('audioLabel').textContent = 'Recording live...';
+  document.getElementById('audioSub').textContent = 'Speaking — transcript auto-updating';
+  document.getElementById('transcript').classList.add('listening');
+};
+
+function stopRec(){
+  isRecording = false;
+  if(recognition){ try{ recognition.stop(); }catch(e){} }
+  document.getElementById('recordBtn').classList.remove('active');
+  document.getElementById('recordBtn').textContent = '🎙';
+  document.getElementById('audioBar').classList.remove('recording');
+  document.getElementById('audioLabel').textContent = 'Click mic to record';
+  document.getElementById('audioSub').textContent = 'Live speech-to-text transcription';
+  document.getElementById('interimText').textContent = '';
+  document.getElementById('transcript').classList.remove('listening');
+}
+
+/* ── LOADING STEPS ── */
+let _st;
+function animateSteps(){
+  const ids=['step1','step2','step3','step4','step5'];
+  ids.forEach(id=>{ const el=document.getElementById(id); el.classList.remove('active','done'); });
+  let i=0; clearInterval(_st);
+  _st = setInterval(()=>{
+    if(i<ids.length){
+      if(i>0) document.getElementById(ids[i-1]).classList.replace('active','done');
+      document.getElementById(ids[i]).classList.add('active'); i++;
+    } else clearInterval(_st);
+  },900);
+}
+
+function setUI(state){
+  ['emptyState','loadingState','resultsPanel'].forEach(id=>document.getElementById(id).classList.add('hidden'));
+  const btn=document.getElementById('analyzeBtn'), txt=document.getElementById('analyzeBtnText');
+  if(state==='loading'){ document.getElementById('loadingState').classList.remove('hidden'); btn.disabled=true; txt.textContent='⟳  Processing...'; }
+  else if(state==='results'){ document.getElementById('resultsPanel').classList.remove('hidden'); btn.disabled=false; txt.textContent='⟶  Run Analysis'; }
+  else { document.getElementById('emptyState').classList.remove('hidden'); btn.disabled=false; txt.textContent='⟶  Run Analysis'; }
+}
+
+/* ── ANALYSIS ── */
+window.runAnalysis = async function(){
+  if(isRecording) stopRec();
+  const transcript = document.getElementById('transcript').value.trim();
+  if(!transcript){ flash(document.getElementById('transcript')); return; }
+  const modules = Array.from(_mods);
+  if(!modules.length) return;
+
+  setUI('loading'); animateSteps();
+
+  try{
+    const res = await fetch('/api/analyze',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({
+        transcript,
+        meetingType: document.getElementById('meetingType').value,
+        duration: document.getElementById('meetingDuration').value,
+        modules
+      })
+    });
+
+    clearInterval(_st);
+    document.getElementById('step5').classList.replace('active','done');
+
+    if(!res.ok){ const e=await res.json(); throw new Error(e.error||'Analysis failed'); }
+    const data = await res.json();
+    setTimeout(()=>{ renderResults(data,modules); setUI('results'); },500);
+
+  } catch(err){
+    clearInterval(_st);
+    document.getElementById('resultsPanel').innerHTML=`<div class="error-box">⚠ ${esc(err.message)}<br><br>Check your Vercel deployment configuration.</div>`;
+    setUI('results');
+  }
+};
+
+/* ── RENDER ── */
+function renderResults(data, modules){
+  const panel = document.getElementById('resultsPanel');
+  const meta = data.meta||{};
+  const ts = new Date().toLocaleString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'2-digit',minute:'2-digit'});
+
+  let h = `<div class="results">
+    <div class="results-header">
+      <div>
+        <div class="results-title">${esc(meta.title||'Meeting Analysis')}</div>
+        <div class="results-meta">
+          <span class="meta-badge">${esc(meta.meeting_type||'Meeting')}</span>
+          <span class="meta-badge">${esc((meta.participants||[]).join(', ')||'—')}</span>
+          <span class="meta-badge">${esc(meta.duration_estimate||'—')}</span>
+          <span class="meta-badge">${ts}</span>
+        </div>
+      </div>
+      <div class="export-btns">
+        <button class="export-btn" onclick="xMD()">↓ MD</button>
+        <button class="export-btn" onclick="xJSON()">↓ JSON</button>
+        <button class="export-btn pdf" onclick="xPDF()">↓ PDF</button>
+      </div>
+    </div>
+    <div class="score-strip">
+      <div class="score-cell"><div class="score-num">${meta.total_action_items||data.action_items?.length||0}</div><div class="score-label">Action Items</div></div>
+      <div class="score-cell"><div class="score-num">${meta.total_decisions||data.decisions?.length||0}</div><div class="score-label">Decisions</div></div>
+      <div class="score-cell"><div class="score-num">${meta.total_risks||data.risks?.length||0}</div><div class="score-label">Risk Flags</div></div>
+      <div class="score-cell"><div class="score-num">${data.summary?.meeting_effectiveness||'—'}</div><div class="score-label">Effectiveness</div></div>
+    </div>
+    ${meta.topics?.length?`<div class="topic-cloud">${meta.topics.map(t=>`<div class="topic-tag">${esc(t)}</div>`).join('')}</div>`:''}
+  `;
+
+  if(modules.includes('summary')&&data.summary){
+    h+=`<div class="section-card gold">
+      <div class="card-header"><span class="card-icon">◈</span><span class="card-title">Executive Summary</span></div>
+      <div class="card-body">
+        <div class="summary-text">${esc(data.summary.executive_summary||'')}</div>
+        ${data.summary.key_outcomes?.length?`<div style="margin-top:16px;border-top:1px solid var(--border);padding-top:14px;">
+          <div class="panel-label" style="margin-bottom:8px;">Key Outcomes</div>
+          ${data.summary.key_outcomes.map(o=>`<div style="display:flex;gap:9px;align-items:flex-start;margin-bottom:7px;"><span style="color:var(--gold);font-size:9px;padding-top:3px;">◆</span><span style="font-size:12px;color:var(--text-primary);line-height:1.6;">${esc(o)}</span></div>`).join('')}
+        </div>`:''}
+      </div>
+    </div>`;
+  }
+
+  if(modules.includes('actions')&&data.action_items?.length){
+    const s=[...data.action_items].sort((a,b)=>({high:0,medium:1,low:2}[a.priority]||2)-({high:0,medium:1,low:2}[b.priority]||2));
+    h+=`<div class="section-card green">
+      <div class="card-header"><span class="card-icon">◉</span><span class="card-title">Action Items</span><span class="card-count">${s.length} items</span></div>
+      <div class="card-body"><div class="action-list">
+        ${s.map((item,i)=>`<div class="action-item ${item.priority==='high'?'ph':item.priority==='medium'?'pm':'pl'}">
+          <span class="action-num">${String(i+1).padStart(2,'0')}</span>
+          <div>
+            <div class="action-task">${esc(item.task)}</div>
+            <div class="action-details">
+              ${item.owner!=='Unassigned'?`<span class="atag owner">↳ ${esc(item.owner)}</span>`:''}
+              ${item.due_date!=='Not specified'?`<span class="atag due">${esc(item.due_date)}</span>`:''}
+              <span class="atag ${item.priority==='high'?'hi':'med'}">${esc((item.priority||'').toUpperCase())}</span>
+            </div>
+          </div>
+          <div class="action-check" onclick="this.style.background='rgba(45,204,112,0.15)';this.style.borderColor='var(--green)';this.textContent='✓';">□</div>
+        </div>`).join('')}
+      </div></div>
+    </div>`;
+  }
+
+  if(modules.includes('decisions')&&data.decisions?.length){
+    h+=`<div class="section-card gold">
+      <div class="card-header"><span class="card-icon">◆</span><span class="card-title">Key Decisions</span><span class="card-count">${data.decisions.length}</span></div>
+      <div class="card-body"><div class="decision-list">
+        ${data.decisions.map(d=>`<div class="decision-item">
+          <div class="decision-text">${esc(d.decision)}</div>
+          ${d.rationale?`<div class="decision-rationale">Rationale: ${esc(d.rationale)}</div>`:''}
+          ${d.impact?`<div style="margin-top:5px;font-size:10px;letter-spacing:0.1em;color:var(--gold);">IMPACT: ${esc(d.impact)}</div>`:''}
+          ${d.decision_maker?`<div style="margin-top:3px;font-size:10px;color:var(--text-dim);">Decision maker: ${esc(d.decision_maker)}</div>`:''}
+        </div>`).join('')}
+      </div></div>
+    </div>`;
+  }
+
+  if(modules.includes('risks')&&data.risks?.length){
+    h+=`<div class="section-card red">
+      <div class="card-header"><span class="card-icon">⚠</span><span class="card-title">Risk Flags</span><span class="card-count">${data.risks.length} identified</span></div>
+      <div class="card-body"><div class="risk-list">
+        ${data.risks.map(r=>`<div class="risk-item">
+          <span class="rsev ${r.severity==='high'?'high':r.severity==='medium'?'med':'low'}">${esc((r.severity||'').toUpperCase())}</span>
+          <div>
+            <div class="risk-text">${esc(r.risk)}</div>
+            ${r.mitigation?`<div class="risk-mit">Mitigation: ${esc(r.mitigation)}</div>`:''}
+            <div style="margin-top:6px;display:flex;gap:7px;">
+              ${r.category?`<span class="atag">${esc(r.category)}</span>`:''}
+              ${r.owner?`<span class="atag owner">${esc(r.owner)}</span>`:''}
+            </div>
+          </div>
+        </div>`).join('')}
+      </div></div>
+    </div>`;
+  }
+
+  if(modules.includes('speakers')&&data.speakers?.length){
+    h+=`<div class="section-card blue">
+      <div class="card-header"><span class="card-icon">◎</span><span class="card-title">Speaker Analysis</span><span class="card-count">${data.speakers.length} participants</span></div>
+      <div class="card-body"><div class="speaker-grid">
+        ${data.speakers.map(s=>`<div class="speaker-card">
+          <div class="speaker-name">${esc(s.name)}</div>
+          ${s.role_inferred?`<div style="font-size:10px;color:var(--gold);letter-spacing:0.1em;margin-bottom:8px;">${esc(s.role_inferred)}</div>`:''}
+          <div class="speaker-stat"><span>Talk Share</span><span class="sv">${s.talk_ratio||'—'}%</span></div>
+          <div class="speaker-stat"><span>Participation</span><span class="sv">${esc(s.participation_level||'—')}</span></div>
+          <div class="speaker-stat"><span>Sentiment</span><span class="sv">${s.sentiment_score||'—'}/100</span></div>
+          <div class="sent-bar"><div class="sent-fill" style="width:${s.sentiment_score||50}%"></div></div>
+          ${s.key_contributions?`<div style="margin-top:9px;font-size:10px;color:var(--text-secondary);line-height:1.6;">${esc(s.key_contributions)}</div>`:''}
+        </div>`).join('')}
+      </div></div>
+    </div>`;
+  }
+
+  if(modules.includes('followups')&&data.follow_ups?.length){
+    h+=`<div class="section-card amber">
+      <div class="card-header"><span class="card-icon">→</span><span class="card-title">Follow-Up Items</span><span class="card-count">${data.follow_ups.length}</span></div>
+      <div class="card-body"><div class="followup-list">
+        ${data.follow_ups.map(f=>`<div class="followup-item"><span class="followup-arrow">→</span><span class="followup-text">${esc(f)}</span></div>`).join('')}
+      </div></div>
+    </div>`;
+  }
+
+  h += '</div>';
+  panel.innerHTML = h;
+  window._LR = data;
+  window._LM = modules;
+}
+
+/* ── EXPORTS ── */
+window.xMD = function(){
+  const d=window._LR; if(!d) return;
+  let m=`# ${d.meta?.title||'Meeting Analysis'}\n\n**Date:** ${new Date().toLocaleDateString()}  \n**Participants:** ${(d.meta?.participants||[]).join(', ')||'—'}  \n**Duration:** ${d.meta?.duration_estimate||'—'}\n\n---\n\n`;
+  if(d.summary) m+=`## Executive Summary\n${d.summary.executive_summary}\n\n`;
+  if(d.action_items?.length){ m+=`## Action Items\n`; d.action_items.forEach((a,i)=>{ m+=`${i+1}. **${a.task}**  \n   Owner: ${a.owner} | Due: ${a.due_date} | Priority: ${a.priority}\n\n`; }); }
+  if(d.decisions?.length){ m+=`## Key Decisions\n`; d.decisions.forEach(dec=>{ m+=`- **${dec.decision}**  \n  *${dec.rationale||''}*\n\n`; }); }
+  if(d.risks?.length){ m+=`## Risk Flags\n`; d.risks.forEach(r=>{ m+=`- [${(r.severity||'').toUpperCase()}] ${r.risk}  \n  Mitigation: ${r.mitigation||'—'}\n\n`; }); }
+  if(d.follow_ups?.length){ m+=`## Follow-Ups\n`; d.follow_ups.forEach(f=>{ m+=`- ${f}\n`; }); }
+  dl('meeting-analysis.md',m,'text/markdown');
+};
+
+window.xJSON = function(){
+  if(!window._LR) return;
+  dl('meeting-analysis.json',JSON.stringify(window._LR,null,2),'application/json');
+};
+
+window.xPDF = function(){
+  const d = window._LR;
+  if(!d){ alert('Run an analysis first.'); return; }
+  if(!window.jspdf){ alert('PDF library still loading — try again in a moment.'); return; }
+
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ orientation:'portrait', unit:'mm', format:'a4' });
+
+  const W=210, L=22, R=188, TW=166;
+  let y=0;
+
+  const C = {
+    gold:[180,145,40], dark:[12,12,18], white:[240,237,232],
+    dim:[100,100,118], red:[200,60,60], amber:[195,135,28], green:[38,172,96]
+  };
+
+  function newPage(){
+    doc.addPage(); y=22;
+    doc.setDrawColor(...C.gold); doc.setLineWidth(0.25); doc.line(L,13,R,13);
+    doc.setFontSize(7); doc.setTextColor(...C.dim); doc.setFont('helvetica','normal');
+    doc.text('MERIDIAN — AI Meeting Intelligence',L,10);
+    doc.text('Page '+doc.internal.getCurrentPageInfo().pageNumber,R,10,{align:'right'});
+  }
+
+  function chk(n=10){ if(y+n>272) newPage(); }
+
+  function block(text,x,maxW,lh=5.8,color=C.white){
+    doc.setTextColor(...color);
+    const lines=doc.splitTextToSize(String(text||''),maxW);
+    lines.forEach(line=>{ chk(lh); doc.text(line,x,y); y+=lh; });
+  }
+
+  function secHead(title,color=C.gold){
+    chk(14);
+    doc.setFillColor(color[0]*0.12,color[1]*0.12,color[2]*0.12);
+    doc.rect(L,y-4,TW,11,'F');
+    doc.setFillColor(...color); doc.rect(L,y-4,2,11,'F');
+    doc.setFont('helvetica','bold'); doc.setFontSize(9); doc.setTextColor(...color);
+    doc.text(title.toUpperCase(),L+6,y+2);
+    y+=12;
+  }
+
+  /* ── COVER PAGE ── */
+  doc.setFillColor(...C.dark); doc.rect(0,0,W,297,'F');
+  doc.setFillColor(...C.gold); doc.rect(0,0,W,2,'F');
+  doc.setFillColor(20,20,30); doc.rect(0,2,W,2,'F');
+
+  doc.setFont('helvetica','bold'); doc.setFontSize(38); doc.setTextColor(...C.gold);
+  doc.text('MERIDIAN',W/2,88,{align:'center'});
+
+  doc.setFont('helvetica','normal'); doc.setFontSize(10); doc.setTextColor(...C.dim);
+  doc.text('AI MEETING INTELLIGENCE PLATFORM',W/2,98,{align:'center'});
+
+  doc.setDrawColor(...C.gold); doc.setLineWidth(0.35);
+  doc.rect(L,112,TW,44);
+
+  doc.setFont('helvetica','bold'); doc.setFontSize(14); doc.setTextColor(...C.white);
+  const tl=doc.splitTextToSize(d.meta?.title||'Meeting Analysis',TW-12);
+  let ty=128; tl.forEach(line=>{ doc.text(line,W/2,ty,{align:'center'}); ty+=9; });
+
+  doc.setFont('helvetica','normal'); doc.setFontSize(8.5); doc.setTextColor(...C.dim);
+  doc.text((d.meta?.participants||[]).join('  ·  ')||'—',W/2,152,{align:'center',maxWidth:TW-12});
+
+  const stats=[
+    {l:'Action Items',v:d.action_items?.length||0},
+    {l:'Decisions',v:d.decisions?.length||0},
+    {l:'Risk Flags',v:d.risks?.length||0},
+    {l:'Effectiveness',v:(d.summary?.meeting_effectiveness||'—')+(d.summary?.meeting_effectiveness?'/100':'')}
+  ];
+  const cw=TW/4;
+  stats.forEach((s,i)=>{
+    const cx=L+i*cw+cw/2;
+    doc.setFont('helvetica','bold'); doc.setFontSize(24); doc.setTextColor(...C.gold);
+    doc.text(String(s.v),cx,193,{align:'center'});
+    doc.setFont('helvetica','normal'); doc.setFontSize(7); doc.setTextColor(...C.dim);
+    doc.text(s.l.toUpperCase(),cx,200,{align:'center'});
+  });
+
+  if(d.meta?.topics?.length){
+    doc.setFont('helvetica','normal'); doc.setFontSize(8); doc.setTextColor(...C.dim);
+    doc.text((d.meta.topics||[]).join('  ·  '),W/2,222,{align:'center',maxWidth:TW});
+  }
+
+  doc.setFont('helvetica','normal'); doc.setFontSize(8); doc.setTextColor(...C.dim);
+  doc.text('Generated '+new Date().toLocaleString(),W/2,268,{align:'center'});
+  doc.text('Powered by MERIDIAN',W/2,275,{align:'center'});
+
+  /* ── CONTENT PAGES ── */
+  newPage();
+
+  /* SUMMARY */
+  if(d.summary){
+    secHead('Executive Summary',C.gold);
+    y+=1;
+    doc.setFont('helvetica','normal'); doc.setFontSize(10);
+    block(d.summary.executive_summary||'',L,TW,6.2,C.white);
+    y+=3;
+    if(d.summary.key_outcomes?.length){
+      chk(10);
+      doc.setFont('helvetica','bold'); doc.setFontSize(8); doc.setTextColor(...C.gold);
+      doc.text('KEY OUTCOMES',L,y); y+=6;
+      d.summary.key_outcomes.forEach(o=>{
+        chk(8);
+        doc.setTextColor(...C.gold); doc.setFontSize(8); doc.text('◆',L,y);
+        doc.setFont('helvetica','normal');
+        const ls=doc.splitTextToSize(String(o||''),TW-8);
+        ls.forEach(line=>{ chk(5.5); doc.setTextColor(...C.white); doc.text(line,L+6,y); y+=5.5; });
+        y+=1;
+      });
+    }
+    y+=6;
+  }
+
+  /* ACTIONS */
+  if(d.action_items?.length){
+    secHead('Action Items',C.green);
+    y+=2;
+    const sorted=[...d.action_items].sort((a,b)=>({high:0,medium:1,low:2}[a.priority]||2)-({high:0,medium:1,low:2}[b.priority]||2));
+    sorted.forEach((item,i)=>{
+      const pc = item.priority==='high'?C.red:item.priority==='medium'?C.amber:C.dim;
+      chk(20);
+      doc.setFillColor(22,22,32); doc.rect(L,y-3,TW,16,'F');
+      doc.setFillColor(...pc); doc.rect(L,y-3,2,16,'F');
+      doc.setFont('helvetica','bold'); doc.setFontSize(8); doc.setTextColor(...C.dim);
+      doc.text(String(i+1).padStart(2,'0'),L+5,y+2);
+      doc.setFont('helvetica','bold'); doc.setFontSize(9); doc.setTextColor(...C.white);
+      const tls=doc.splitTextToSize(item.task||'',TW-22);
+      tls.forEach((line,li)=>{ doc.text(line,L+14,y+li*5.5+2); });
+      y+=tls.length*5.5+4;
+      chk(7);
+      doc.setFont('helvetica','normal'); doc.setFontSize(7.5); doc.setTextColor(...C.dim);
+      doc.text(`Owner: ${item.owner||'—'}  |  Due: ${item.due_date||'—'}  |  Priority: ${(item.priority||'').toUpperCase()}`,L+14,y);
+      y+=10;
+    });
+    y+=4;
+  }
+
+  /* DECISIONS */
+  if(d.decisions?.length){
+    secHead('Key Decisions',C.gold);
+    y+=2;
+    d.decisions.forEach(dec=>{
+      chk(18);
+      doc.setDrawColor(...C.gold); doc.setLineWidth(0.4); doc.line(L,y-2,L,y+14);
+      doc.setFont('helvetica','bold'); doc.setFontSize(9); doc.setTextColor(...C.white);
+      const dl=doc.splitTextToSize(dec.decision||'',TW-8);
+      dl.forEach(line=>{ doc.text(line,L+6,y); y+=5.5; });
+      if(dec.rationale){
+        chk(6);
+        doc.setFont('helvetica','italic'); doc.setFontSize(8); doc.setTextColor(...C.dim);
+        const rl=doc.splitTextToSize('Rationale: '+dec.rationale,TW-8);
+        rl.forEach(line=>{ doc.text(line,L+6,y); y+=5; });
+      }
+      if(dec.impact){
+        chk(6);
+        doc.setFont('helvetica','bold'); doc.setFontSize(7.5); doc.setTextColor(...C.gold);
+        doc.text('IMPACT: '+dec.impact,L+6,y); y+=5;
+      }
+      y+=6;
+    });
+    y+=4;
+  }
+
+  /* RISKS */
+  if(d.risks?.length){
+    secHead('Risk Flags',C.red);
+    y+=2;
+    d.risks.forEach(r=>{
+      chk(18);
+      const sc=r.severity==='high'?C.red:r.severity==='medium'?C.amber:C.dim;
+      doc.setFillColor(sc[0]*0.1,sc[1]*0.1,sc[2]*0.1);
+      doc.rect(L,y-3,TW,17,'F');
+      doc.setFont('helvetica','bold'); doc.setFontSize(7.5); doc.setTextColor(...sc);
+      doc.text((r.severity||'').toUpperCase(),L+3,y+2);
+      doc.setFont('helvetica','bold'); doc.setFontSize(9); doc.setTextColor(...C.white);
+      const rl=doc.splitTextToSize(r.risk||'',TW-30);
+      rl.forEach((line,li)=>{ doc.text(line,L+28,y+li*5.5+2); });
+      y+=Math.max(rl.length*5.5,8)+4;
+      if(r.mitigation){
+        chk(6);
+        doc.setFont('helvetica','italic'); doc.setFontSize(8); doc.setTextColor(...C.dim);
+        block('Mitigation: '+r.mitigation,L+4,TW-8,5,C.dim);
+      }
+      y+=5;
+    });
+    y+=4;
+  }
+
+  /* FOLLOW-UPS */
+  if(d.follow_ups?.length){
+    secHead('Follow-Up Items',C.amber);
+    y+=2;
+    d.follow_ups.forEach(f=>{
+      chk(9);
+      doc.setTextColor(...C.amber); doc.setFontSize(9); doc.text('→',L,y);
+      doc.setFont('helvetica','normal'); doc.setFontSize(9); doc.setTextColor(...C.white);
+      const fl=doc.splitTextToSize(String(f||''),TW-8);
+      fl.forEach(line=>{ doc.text(line,L+7,y); y+=5.5; }); y+=3;
+    });
+  }
+
+  /* FOOTER */
+  chk(10);
+  doc.setDrawColor(...C.gold); doc.setLineWidth(0.25); doc.line(L,y,R,y); y+=5;
+  doc.setFont('helvetica','normal'); doc.setFontSize(7.5); doc.setTextColor(...C.dim);
+  doc.text('Generated by MERIDIAN — AI Meeting Intelligence Platform',L,y);
+  doc.text(new Date().toLocaleDateString(),R,y,{align:'right'});
+
+  const fname='meridian-'+(d.meta?.title||'meeting').toLowerCase().replace(/\s+/g,'-').replace(/[^a-z0-9-]/g,'')+'-'+Date.now()+'.pdf';
+  doc.save(fname);
+};
+
+/* ── SAMPLE ── */
+window.loadSample = function(){
+  const t=document.getElementById('transcript');
+  t.value=`Speaker: Sarah Chen (VP of Sales)
+We need to talk about Q4. We're sitting at 67% of quota with 6 weeks left. The pipeline looks good on paper — $4.2 million — but conversion has dropped 12 points from Q3.
+
+Speaker: Marcus Webb (CEO)
+What's driving the conversion drop? Is this a pricing issue or something in the process?
+
+Speaker: Sarah Chen
+Honestly, both. Three enterprise deals stalled because procurement is pushing back on our annual contract requirement. They want monthly. And our response times from solutions engineering are averaging 4 days — that's killing momentum.
+
+Speaker: David Park (Head of Solutions Engineering)
+That's fair. We're understaffed. I've been saying we need two more SEs since August. Right now James and Priya are handling 22 active deals between them.
+
+Speaker: Marcus Webb
+Okay. Let's fix what we can fix now. David, I'm approving two SE hires — get the JDs out by Friday. Sarah, work with finance on a monthly billing option, but make sure the annual discount is compelling enough to drive the right choice.
+
+Speaker: Lisa Torres (CFO)
+I can model three scenarios by end of day tomorrow. Monthly at full price, monthly at 15% premium over annual, and a hybrid quarterly option. We need to be careful not to cannibalize our cash flow position.
+
+Speaker: Marcus Webb
+What about the enterprise deals that stalled? Can we save them?
+
+Speaker: Sarah Chen
+Two of them, yes. Constellation and Meridian Group are both still engaged. The third — Apex — went with a competitor last week. We probably lost that one on speed.
+
+Speaker: David Park
+I can have the security documentation ready by next Wednesday if you get me Meridian's specific requirements.
+
+Speaker: Marcus Webb
+Alright. I want daily pipeline updates starting Monday. Lisa, flag me if the monthly billing model creates any covenant issues with our credit facility. This is the priority for the next 6 weeks.
+
+Speaker: Lisa Torres
+Understood. I'll loop in legal since any contract structure changes need review. Let's reconvene Thursday at 2pm.`;
+  document.getElementById('charCount').textContent=t.value.length.toLocaleString()+' chars';
+  document.getElementById('meetingType').value='executive';
+  document.getElementById('meetingDuration').value='45 min';
+};
+
+/* ── UTILS ── */
+function flash(el){ el.style.borderColor='var(--red)'; setTimeout(()=>el.style.borderColor='',1800); }
+function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function dl(name,content,type){
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([content],{type}));
+  a.download=name; a.click();
+}
+
+})();
+</script>
+</body>
+</html>
